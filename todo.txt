@@ -1,0 +1,4 @@
+Todos:
+
+- Look at agent code for Minigrid maze. How are the state spaces represented?
+- Look at potential datasets for string similarity.
