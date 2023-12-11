@@ -3,6 +3,8 @@ import torch.nn as nn
 import gymnasium as gym
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from gymnasium.core import ObservationWrapper
+
 
 # base behavior
 class CNNFeaturesExtractor(BaseFeaturesExtractor):
@@ -28,6 +30,18 @@ class CNNFeaturesExtractor(BaseFeaturesExtractor):
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return self.linear(self.cnn(observations))
 
+class CustomImgObsWrapper(ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.observation_space = env.observation_space.spaces["image"]
+
+    def observation(self, obs):
+        return {"image": obs["image"], "vector": obs["vector"]}
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self.observation(obs), reward, terminated, truncated, info
+
 class CustomFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_spaces: gym.spaces.Dict, cnn_features_dim: int = 512, mlp_features_dim: int = 32) -> None:
         super().__init__(observation_spaces, cnn_features_dim + mlp_features_dim)
@@ -35,8 +49,17 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
         # assume observation_spaces["image"] is (3,H,W)
         # assume observation_spaces["vector"] is (D,)
 
-        n_cnn_input_channels = observation_spaces["image"].shape[0]
-        n_mlp_input_channels = observation_spaces["vector"].shape[0]
+        # n_cnn_input_channels = observation_spaces["image"].shape[0]
+        # n_mlp_input_channels = observation_spaces["vector"].shape[0]
+
+        for key, subspace in observation_spaces.spaces.items():
+            if key == "image":
+                # We will just downsample one channel of the image by 4x4 and flatten.
+                # Assume the image is single-channel (subspace.shape[0] == 0)
+                n_cnn_input_channels = subspace.shape[0]
+            elif key == "vector":
+                # Run through a simple MLP
+                n_mlp_input_channels = subspace.shape[0]
 
         self.cnn = nn.Sequential(
             nn.Conv2d(n_cnn_input_channels, 16, (2, 2)),

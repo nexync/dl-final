@@ -12,13 +12,12 @@ from minigrid.minigrid_env import MiniGridEnv
 import numpy as np
 
 class CustomDoorKey(MiniGridEnv):
-    def __init__(self, size=8, max_steps: int | None = None, intermediate_reward = True, randomize_goal = False, k = 1, custom_features = False, **kwargs):
+    def __init__(self, size=8, max_steps: int | None = None, intermediate_reward = True, randomize_goal = False, k = 1, **kwargs):
         if max_steps is None:
             max_steps = 10 * size**2
 
         self.randomize_goal = randomize_goal
         self.intermediate_reward = intermediate_reward
-        self.custom_features = custom_features
 
         self.opened_door = False
         self.obtained_key = False
@@ -86,10 +85,10 @@ class CustomDoorKey(MiniGridEnv):
         res_vector += [self.opened_door]
 
         res = {
-            "image": observation
+            **observation,
             "vector": res_vector
         }
-
+        
         return res
         
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[ObsType, dict[str, Any]]:
@@ -97,12 +96,9 @@ class CustomDoorKey(MiniGridEnv):
 
         self.opened_door = False
         self.obtained_key = False
-
-        if self.custom_features:
-            res = self._generate_obs_dict(obs)
-            return res, {}
-        else:
-            return obs, {}
+        
+        res = self._generate_obs_dict(obs)
+        return res, {}
 
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         self.step_count += 1
@@ -178,9 +174,6 @@ class CustomDoorKey(MiniGridEnv):
 
         obs = self.gen_obs()
 
-        if self.custom_features:
-            res = self._generate_obs_dict(obs)
-            return res, reward, terminated, truncated, {}
+        res = self._generate_obs_dict(obs)
+        return res, reward, terminated, truncated, {}
         
-        else:
-            return obs, reward, terminated, truncated, {}
