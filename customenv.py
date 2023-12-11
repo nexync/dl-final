@@ -12,12 +12,13 @@ from minigrid.minigrid_env import MiniGridEnv
 import numpy as np
 
 class CustomDoorKey(MiniGridEnv):
-    def __init__(self, size=8, max_steps: int | None = None, intermediate_reward = True, randomize_goal = False, k = 1, **kwargs):
+    def __init__(self, size=8, max_steps: int | None = None, intermediate_reward = True, randomize_goal = False, k = 1, custom_features = False, **kwargs):
         if max_steps is None:
             max_steps = 10 * size**2
 
         self.randomize_goal = randomize_goal
         self.intermediate_reward = intermediate_reward
+        self.custom_features = custom_features
 
         self.opened_door = False
         self.obtained_key = False
@@ -66,13 +67,42 @@ class CustomDoorKey(MiniGridEnv):
 
         self.mission = "use the key to open the door and then get to the goal"
 
+    def _generate_obs_dict(self, observation):
+        res_vector = []
+        
+        # agent position
+        x, y = self.agent_pos
+        res_vector += [x,y]
+        
+        # one hot encoding of agent direction
+        agent_dir = [0]*4
+        agent_dir[self.agent_dir] = 1
+        res_vector += agent_dir
+
+        # carrying
+        res_vector += [self.carrying]
+
+        # door opened
+        res_vector += [self.opened_door]
+
+        res = {
+            "image": observation
+            "vector": res_vector
+        }
+
+        return res
+        
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[ObsType, dict[str, Any]]:
         obs, _ = super().reset(seed=seed)
 
         self.opened_door = False
         self.obtained_key = False
 
-        return obs, {}
+        if self.custom_features:
+            res = self._generate_obs_dict(obs)
+            return res, {}
+        else:
+            return obs, {}
 
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         self.step_count += 1
@@ -148,4 +178,9 @@ class CustomDoorKey(MiniGridEnv):
 
         obs = self.gen_obs()
 
-        return obs, reward, terminated, truncated, {}
+        if self.custom_features:
+            res = self._generate_obs_dict(obs)
+            return res, reward, terminated, truncated, {}
+        
+        else:
+            return obs, reward, terminated, truncated, {}
