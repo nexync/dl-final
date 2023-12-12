@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import gymnasium as gym
+from gymnasium import spaces
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from gymnasium.core import ObservationWrapper
@@ -33,17 +34,23 @@ class CNNFeaturesExtractor(BaseFeaturesExtractor):
 class CustomImgObsWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.observation_space = env.observation_space.spaces["image"]
+        self.observation_space = spaces.Dict(
+            {
+                "image": env.observation_space.spaces["image"],
+                "vector_pos": env.observation_space.spaces["vector_pos"],
+                "vector_info": env.observation_space.spaces["vector_info"]
+            }
+        )
 
     def observation(self, obs):
-        return {"image": obs["image"], "vector": obs["vector"]}
+        return {"image": obs["image"], "vector_pos": obs["vector_pos"], "vector_info": obs["vector_info"]}
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
         return self.observation(obs), reward, terminated, truncated, info
 
 class CustomFeatureExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_spaces: gym.spaces.Dict, cnn_features_dim: int = 512, mlp_features_dim: int = 32) -> None:
+    def __init__(self, observation_spaces: spaces.Dict, cnn_features_dim: int = 512, mlp_features_dim: int = 32) -> None:
         super().__init__(observation_spaces, cnn_features_dim + mlp_features_dim)
         
         # assume observation_spaces["image"] is (3,H,W)
@@ -57,9 +64,6 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
                 # We will just downsample one channel of the image by 4x4 and flatten.
                 # Assume the image is single-channel (subspace.shape[0] == 0)
                 n_cnn_input_channels = subspace.shape[0]
-            elif key == "vector":
-                # Run through a simple MLP
-                n_mlp_input_channels = subspace.shape[0]
 
         self.cnn = nn.Sequential(
             nn.Conv2d(n_cnn_input_channels, 16, (2, 2)),
@@ -73,7 +77,7 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
         # Compute shape by doing one forward pass
         with torch.no_grad():
-            n_flatten = self.cnn(torch.as_tensor(observation_space.sample()[None]).float()).shape[1]
+            n_flatten = self.cnn(torch.as_tensor(observation_spaces["image"].sample()[None]).float()).shape[1]
 
         self.linear = nn.Sequential(
             nn.Linear(n_flatten, cnn_features_dim), nn.ReLU()
@@ -81,22 +85,18 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
         self.mlp = nn.Sequential(
             # can edit this
-            nn.Linear(n_mlp_input_channels, 32),
-            nn.ReLu(),
+            nn.Linear(8, 32),
+            nn.ReLU(),
             nn.Linear(32, mlp_features_dim)
         )
 
     def forward(self, observations) -> torch.Tensor:
         encoded_tensor_list = []
 
-        # self.extractors contain nn.Modules that do all the processing.
-        for key in observations:
-            if key == "image":
-                encoded_tensor_list.append(self.linear(self.cnn(observations[key])))
-            elif key == "vector":
-                encoded_tensor_list.append(self.mlp(observations[key]))
-            else:
-                assert False
+        mlp_input = torch.cat((observations["vector_pos"], observations["vector_info"]), dim = 1)
+
+        encoded_tensor_list.append(self.linear(self.cnn(observations["image"])))
+        encoded_tensor_list.append(self.mlp(mlp_input))
 
         # Return a (B, self._features_dim) PyTorch tensor, where B is batch dimension.
         return torch.cat(encoded_tensor_list, dim=1)

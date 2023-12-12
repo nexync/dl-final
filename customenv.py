@@ -4,6 +4,7 @@ from minigrid.minigrid_env import MiniGridEnv
 from typing import Any, SupportsFloat
 from gymnasium.core import ActType, ObsType
 
+from gymnasium import spaces
 from minigrid.core.grid import Grid
 from minigrid.core.mission import MissionSpace
 from minigrid.core.world_object import Door, Goal, Key
@@ -28,6 +29,28 @@ class CustomDoorKey(MiniGridEnv):
         mission_space = MissionSpace(mission_func=self._gen_mission)
         super().__init__(
             mission_space=mission_space, grid_size=size, max_steps=max_steps, **kwargs
+        )
+
+        vector_pos = spaces.Box(
+            low=1,
+            high=size-1,
+            shape=(2,),
+            dtype="uint8",
+        )
+
+        vector_info = spaces.Box(
+            low=0,
+            high=1,
+            shape=(6,),
+            dtype="uint8"
+        )
+
+        self.observation_space = spaces.Dict(
+            {
+                **self.observation_space,
+                "vector_pos": vector_pos,
+                "vector_info": vector_info
+            }
         )
 
     @staticmethod
@@ -67,26 +90,28 @@ class CustomDoorKey(MiniGridEnv):
         self.mission = "use the key to open the door and then get to the goal"
 
     def _generate_obs_dict(self, observation):
-        res_vector = []
+        vector_pos = []
+        vector_info = []
         
         # agent position
         x, y = self.agent_pos
-        res_vector += [x,y]
+        vector_pos += [x,y]
         
         # one hot encoding of agent direction
         agent_dir = [0]*4
         agent_dir[self.agent_dir] = 1
-        res_vector += agent_dir
+        vector_info += agent_dir
 
         # carrying
-        res_vector += [self.carrying]
+        vector_info += [int(self.obtained_key)]
 
         # door opened
-        res_vector += [self.opened_door]
+        vector_info += [int(self.opened_door)]
 
         res = {
             **observation,
-            "vector": res_vector
+            "vector_pos": vector_pos,
+            "vector_info": vector_info
         }
         
         return res
