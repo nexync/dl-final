@@ -9,24 +9,47 @@ from gymnasium.core import ObservationWrapper
 
 # base behavior
 class CNNFeaturesExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.Space, features_dim: int = 512, normalized_image: bool = False) -> None:
+    def __init__(self, observation_space: gym.Space, features_dim: int = 512, regularization = False) -> None:
         super().__init__(observation_space, features_dim)
         n_input_channels = observation_space.shape[0]
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 16, (2, 2)),
-            nn.ReLU(),
-            nn.Conv2d(16, 32, (2, 2)),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, (2, 2)),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
+
+        if regularization:
+            self.cnn = nn.Sequential(
+                nn.Conv2d(n_input_channels, 16, (2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(16),
+                nn.Conv2d(16, 32, (2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(32),
+                nn.Conv2d(32, 64, (2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(64),
+                nn.AdaptiveAvgPool2d((1, 1)),
+                nn.Flatten(),
+            )
+        else:
+            self.cnn = nn.Sequential(
+                nn.Conv2d(n_input_channels, 16, (2, 2)),
+                nn.ReLU(),
+                nn.Conv2d(16, 32, (2, 2)),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, (2, 2)),
+                nn.ReLU(),
+                nn.Flatten(),
+            )
 
         # Compute shape by doing one forward pass
         with torch.no_grad():
             n_flatten = self.cnn(torch.as_tensor(observation_space.sample()[None]).float()).shape[1]
-
-        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
+        
+        if regularization:
+            self.linear = nn.Sequential(
+                nn.Linear(n_flatten, features_dim),
+                nn.ReLU(),
+                nn.Dropout(p=0.2) 
+            )
+        else:
+            self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return self.linear(self.cnn(observations))
@@ -50,7 +73,7 @@ class CustomImgObsWrapper(ObservationWrapper):
         return self.observation(obs), reward, terminated, truncated, info
 
 class CustomFeatureExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_spaces: spaces.Dict, cnn_features_dim: int = 512, mlp_features_dim: int = 32) -> None:
+    def __init__(self, observation_spaces: spaces.Dict, cnn_features_dim: int = 512, mlp_features_dim: int = 32, regularization = False) -> None:
         super().__init__(observation_spaces, cnn_features_dim + mlp_features_dim)
         
         # assume observation_spaces["image"] is (3,H,W)
@@ -65,23 +88,43 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
                 # Assume the image is single-channel (subspace.shape[0] == 0)
                 n_cnn_input_channels = subspace.shape[0]
 
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_cnn_input_channels, 16, (2, 2)),
-            nn.ReLU(),
-            nn.Conv2d(16, 32, (2, 2)),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, (2, 2)),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
+        if regularization:
+            self.cnn = nn.Sequential(
+                nn.Conv2d(n_cnn_input_channels, 16, (2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(16),
+                nn.Conv2d(16, 32, (2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(32),
+                nn.Conv2d(32, 64, (2, 2)),
+                nn.ReLU(),
+                nn.BatchNorm2d(64),
+                nn.AdaptiveAvgPool2d((1, 1)),
+                nn.Flatten(),
+            )
+        else:
+            self.cnn = nn.Sequential(
+                nn.Conv2d(n_cnn_input_channels, 16, (2, 2)),
+                nn.ReLU(),
+                nn.Conv2d(16, 32, (2, 2)),
+                nn.ReLU(),
+                nn.Conv2d(32, 64, (2, 2)),
+                nn.ReLU(),
+                nn.Flatten(),
+            )
 
         # Compute shape by doing one forward pass
         with torch.no_grad():
             n_flatten = self.cnn(torch.as_tensor(observation_spaces["image"].sample()[None]).float()).shape[1]
 
-        self.linear = nn.Sequential(
-            nn.Linear(n_flatten, cnn_features_dim), nn.ReLU()
-        )
+        if regularization:
+            self.linear = nn.Sequential(
+                nn.Linear(n_flatten, cnn_features_dim),
+                nn.ReLU(),
+                nn.Dropout(p=0.2) 
+            )
+        else:
+            self.linear = nn.Sequential(nn.Linear(n_flatten, cnn_features_dim), nn.ReLU())
 
         self.mlp = nn.Sequential(
             # can edit this
