@@ -13,7 +13,7 @@ from minigrid.minigrid_env import MiniGridEnv
 import numpy as np
 
 class CustomDoorKey(MiniGridEnv):
-    def __init__(self, size=8, max_steps: int | None = None, intermediate_reward = True, randomize_goal = False, k = 1, **kwargs):
+    def __init__(self, size=8, max_steps: int | None = None, intermediate_reward = True, randomize_goal = False, k = 0.1, **kwargs):
         if max_steps is None:
             max_steps = 10 * size**2
 
@@ -167,7 +167,7 @@ class CustomDoorKey(MiniGridEnv):
                     self.grid.set(fwd_pos[0], fwd_pos[1], None)
                     if isinstance(fwd_cell, Key) and not self.obtained_key and self.intermediate_reward:
                         self.obtained_key = True  # Flag for key pickup
-                        reward = self.k * self._reward()  # Reward for picking up the key
+                        reward += self.k * self._reward()  # Reward for picking up the key
 
         # Drop an object
         elif action == self.actions.drop:
@@ -182,7 +182,7 @@ class CustomDoorKey(MiniGridEnv):
                 fwd_cell.toggle(self, fwd_pos)
                 if not self.opened_door and self.intermediate_reward:
                     self.opened_door = True  # Flag for door opening
-                    reward = self.k * self._reward()  # Reward for opening the door
+                    reward += self.k * self._reward()  # Reward for opening the door
 
         # Done action (not used by default)
         elif action == self.actions.done:
