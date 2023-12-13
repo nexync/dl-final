@@ -12,7 +12,7 @@ class CustomRewardCallback(BaseCallback):
         super(CustomRewardCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.reward_threshold = reward_threshold
-        self.total_rewards = 0
+        self.max_reward = 0
         self.episode_rewards = []
         self.mean_rewards = []
         self.fig, self.ax = plt.subplots()
@@ -21,23 +21,26 @@ class CustomRewardCallback(BaseCallback):
         self.threshold_reached_steps = None
 
     def _on_step(self) -> bool:
-        # Store only the most recent reward
-        self.total_rewards = self.locals['rewards'][0]
+        # Update the max reward seen so far in the current episode
+        self.max_reward = max(self.max_reward, self.locals['rewards'][0])
     
         if self.locals['dones'][0]:
-            # Append the final reward of the episode
-            self.episode_rewards.append(self.total_rewards)
+            # Append the maximum reward of the episode
+            self.episode_rewards.append(self.max_reward)
             current_mean_reward = np.mean(self.episode_rewards[-100:])
             self.mean_rewards.append(current_mean_reward)
-    
+
             make_plot(self.episode_rewards, self.mean_rewards, self.fig, self.ax)
-    
+
+            # Reset max_reward for the next episode
+            self.max_reward = 0
+
             if current_mean_reward >= self.reward_threshold and self.threshold_reached_time is None:
                 self.threshold_reached_time = time.time() - self.start_time
                 self.threshold_reached_steps = self.num_timesteps
-    
+
                 print(f"Threshold reached in {self.threshold_reached_time:.2f} seconds and {self.threshold_reached_steps} steps.")
-    
+
             if current_mean_reward >= self.reward_threshold:
                 print(f"Stopping training as the mean reward {current_mean_reward} is above the threshold {self.reward_threshold}")
                 return False  # Return False to stop the training
