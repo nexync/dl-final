@@ -26,7 +26,6 @@ class CustomDoorKey(MiniGridEnv):
         # Discount for intermediate rewards
         self.key_discount = key_discount
         self.door_discount = door_discount
-        self.current_reward = 0
 
         mission_space = MissionSpace(mission_func=self._gen_mission)
         super().__init__(
@@ -123,7 +122,6 @@ class CustomDoorKey(MiniGridEnv):
 
         self.opened_door = False
         self.obtained_key = False
-        self.current_reward = 0
         
         res = self._generate_obs_dict(obs)
         return res, {}
@@ -131,6 +129,7 @@ class CustomDoorKey(MiniGridEnv):
     def step(self, action: ActType) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         self.step_count += 1
 
+        reward = 0
         terminated = False
         truncated = False
 
@@ -156,7 +155,7 @@ class CustomDoorKey(MiniGridEnv):
                 self.agent_pos = tuple(fwd_pos)
             if fwd_cell is not None and fwd_cell.type == "goal":
                 terminated = True
-                self.current_reward = max(self.current_reward, self._reward())
+                reward = self._reward()
             if fwd_cell is not None and fwd_cell.type == "lava":
                 terminated = True
 
@@ -169,7 +168,7 @@ class CustomDoorKey(MiniGridEnv):
                     self.grid.set(fwd_pos[0], fwd_pos[1], None)
                     if isinstance(fwd_cell, Key) and not self.obtained_key and self.intermediate_reward:
                         self.obtained_key = True  # Flag for key pickup
-                        self.current_reward = max(self.current_reward, self.key_discount * self._reward())  # Reward for picking up the key
+                        reward = self.key_discount * self._reward()  # Reward for picking up the key
 
         # Drop an object
         elif action == self.actions.drop:
@@ -184,7 +183,7 @@ class CustomDoorKey(MiniGridEnv):
                 fwd_cell.toggle(self, fwd_pos)
                 if not self.opened_door and self.intermediate_reward:
                     self.opened_door = True  # Flag for door opening
-                    self.current_reward = max(self.current_reward, self.door_discount * self._reward())  # Reward for opening the door
+                    reward = self.door_discount * self._reward()  # Reward for opening the door
 
         # Done action (not used by default)
         elif action == self.actions.done:
@@ -202,5 +201,5 @@ class CustomDoorKey(MiniGridEnv):
         obs = self.gen_obs()
 
         res = self._generate_obs_dict(obs)
-        return res, self.current_reward, terminated, truncated, {}
+        return res, reward, terminated, truncated, {}
         
