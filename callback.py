@@ -8,7 +8,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 
 class CustomRewardCallback(BaseCallback):
-    def __init__(self, check_freq, reward_threshold, verbose=1):
+    def __init__(self, check_freq, reward_threshold, verbose=False):
         super(CustomRewardCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.reward_threshold = reward_threshold
@@ -19,6 +19,7 @@ class CustomRewardCallback(BaseCallback):
         self.start_time = time.time()  # Start time
         self.threshold_reached_time = None
         self.threshold_reached_steps = None
+        self.verbose = verbose
 
     def _on_step(self) -> bool:
         # Update the max reward seen so far in the current episode
@@ -29,8 +30,9 @@ class CustomRewardCallback(BaseCallback):
             self.episode_rewards.append(self.max_reward)
             current_mean_reward = np.mean(self.episode_rewards[-100:])
             self.mean_rewards.append(current_mean_reward)
-
-            make_plot(self.episode_rewards, self.mean_rewards, self.fig, self.ax)
+            
+            if self.verbose:
+                make_plot(self.episode_rewards, self.mean_rewards, self.fig, self.ax)
 
             # Reset max_reward for the next episode
             self.max_reward = 0
